@@ -1,50 +1,104 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2019/1/9 21:19
-# @Author  : LQX
-# @Email   : qixuan.lqx@qq.com
-# @File    : validate.py
-# @Software: PyCharm
-
-import os
-import math
-import warnings
 import numpy as np
 import torch as t
 from torch.nn import Module
 from torchnet import meter
-from collections import defaultdict
-from core import Config, get_model, Visualizer, ipdb
+from core import Config, Visualizer
 from datasets import CloudDataLoader
 
+def conv_to_label(batch_prob):
+    length = batch_prob.numel()
+    new_prob = t.FloatTensor(length).zero_()
+    for i in range(length):
+        if batch_prob[i] <= 0.0:
+            new_prob[i] = 0.0
+        elif batch_prob[i] <= 0.1:
+            new_prob[i] = 1.0
+        elif batch_prob[i] <= 0.25:
+            new_prob[i] = 2.0
+        elif batch_prob[i] <= 0.75:
+            new_prob[i] = 3.0
+        else:
+            new_prob[i] = 4.0
+    return new_prob
 
-def get_data(data_type, config: Config):
-    data = CloudDataLoader(data_type, config)
-    return data
+
+def sub_conv_pare(batch_sub_prob):
+    label2score = [0.0, 0.1, 0.25, 0.75, 1.0, 0.0]
+    sub_prob = batch_sub_prob.long()
+    sub_len = sub_prob.numel()
+    pare_prob = t.LongTensor(int(sub_len/8)).zero_()
+    label_sum = 0
+    count_F = 0
+    j = 0
+    for i in range(sub_len):
+        if (i+1) % 8 != 0:
+            if sub_prob[i] == 5:
+                count_F += 1
+            label_sum += label2score[sub_prob[i]] / 8
+        else:
+            pare_prob[j] = count_label(label_sum, count_F)
+            j += 1
+            label_sum = 0
+            count_F = 0
+    new_pare_prob = pare_prob.type_as(batch_sub_prob)
+    return new_pare_prob
 
 
-def cover_rate2class(cover_rate: t.Tensor):
-    cover_rate /= 8
-    down_threshold = [-100000, 0.05, 0.1, 0.25, 0.75]
-    up_threshold = [0.05, 0.1, 0.25, 0.75, 100000]
-    ret = t.full([cover_rate.numel()], len(up_threshold))
-    for i in range(len(up_threshold)):
-        index = t.nonzero(cover_rate.gt(down_threshold[i]) * cover_rate.lt(up_threshold[i])).squeeze().cpu()
-        ret.index_fill_(0, index, i)
-    return ret
+def count_label(number, count_F):
+    if count_F == 8:
+        return 5
+    elif number == 0.0:
+        return 0
+    elif number <= 0.1:
+        return 1
+    elif number <= 0.25:
+        return 2
+    elif number <= 0.75:
+        return 3
+    else:
+        return 4
+
+
+def evaluate(confusion_matrix):
+    cm = confusion_matrix.value()
+    accuracy = cm.trace().astype(np.float) / cm.sum()
+    macro_precision = 0
+    macro_recall = 0
+    for label in range(6):
+        if int(cm[:, label].sum()) != 0:
+            precision = cm[label, label].astype(np.float) / cm[:, label].sum()
+            macro_precision += precision
+        if int(cm[label].sum()) != 0:
+            recall = cm[label, label].astype(np.float) / cm[label].sum()
+            macro_recall += recall
+    macro_precision /= 6
+    macro_recall /= 6
+    if macro_precision + macro_recall != 0:
+        f1_score = 2 * macro_precision * macro_recall / (macro_precision + macro_recall)
+    else:
+        f1_score = 0.0
+    return accuracy, f1_score, cm
 
 
 def validate(model, val_data, config, vis):
-    # type: (Module,CloudDataLoader,Config,Visualizer)->None
+    # type: (Module,CloudDataLoader,Config,Visualizer)->(any,any,any,any,dict,dict)
     with t.no_grad():
-        correct_label_distrib = defaultdict(int)  # show how many sub-images are correct for all parent-images
-        error_level_distrib = defaultdict(int)  # show error levels for all parent-images
         sub_confusion_matrix = meter.ConfusionMeter(config.num_classes)
         pare_confusion_matrix = meter.ConfusionMeter(config.num_classes)
+        pare_bo_sub_confusion_matrix = meter.ConfusionMeter(config.num_classes)
         # validate
         for i, input in enumerate(val_data):
             model.eval()
             # input data
             batch_sub_img, batch_sub_label, batch_parent_img, batch_pare_label = input
+            if config.loss_type == 'cross_entropy':
+                batch_sub_label = batch_sub_label.long()
+                batch_pare_label = batch_pare_label.long()
+            elif config.loss_type == 'mseloss':
+                batch_sub_label = batch_sub_label.float()
+                batch_pare_label = batch_pare_label.float()
+
             if config.use_gpu:
                 with t.cuda.device(0):
                     batch_sub_img = batch_sub_img.cuda()
@@ -52,72 +106,30 @@ def validate(model, val_data, config, vis):
                     batch_parent_img = batch_parent_img.cuda()
                     batch_pare_label = batch_pare_label.cuda()
             batch_sub_label = batch_sub_label.view(-1)
+            batch_pare_label = batch_pare_label.view(-1)
             # forward
-            _, batch_cover_rate, batch_prob = model(batch_sub_img, batch_parent_img)
-            batch_cover_rate.squeeze_()
+            batch_sub_prob, batch_pare_prob = model(batch_sub_img, batch_parent_img)
+
             # confusion matrix statistic
-            batch_pred = t.argmax(batch_prob, dim=-1)
-            sub_confusion_matrix.add(batch_pred, batch_sub_label)
-            pare_confusion_matrix.add(cover_rate2class(batch_cover_rate), cover_rate2class(batch_pare_label))
-            # distribution statistic
-            equals = t.split((batch_pred == batch_sub_label), 8)
-            errors = t.split((batch_pred - batch_sub_label), 8)
-            for eqs, errs in zip(equals, errors):
-                sub_corr_count = int(eqs.sum().cpu().numpy())
-                correct_label_distrib[sub_corr_count] += 1
-                sub_err_count = int(errs.abs().sum().cpu().numpy())
-                error_level_distrib[sub_err_count] += 1
-            for i in range(9):
-                correct_label_distrib[i] += 0
-            for i in range(40):
-                error_level_distrib[i] += 0
-            correct_label_distrib = dict(sorted(correct_label_distrib.items(), key=lambda x: x[0], reverse=False))
-            error_level_distrib = dict(sorted(error_level_distrib.items(), key=lambda x: x[0], reverse=False))
-            regr_dist = t.mean(t.abs(batch_cover_rate - batch_pare_label)).cpu().numpy()
+            if config.loss_type == 'cross_entropy':
+                batch_sub_prob = t.argmax(batch_sub_prob, dim=-1)
+                batch_pare_prob = t.argmax(batch_pare_prob, dim=-1)
+            elif config.loss_type == 'mseloss':
+                batch_sub_prob = conv_to_label(batch_sub_prob)
+                batch_pare_prob = conv_to_label(batch_pare_prob)
+            sub_confusion_matrix.add(batch_sub_prob, batch_sub_label)
+            pare_confusion_matrix.add(batch_pare_prob, batch_pare_label)
+
+            batch_pare_bo_sub_prob = sub_conv_pare(batch_sub_prob)
+            pare_bo_sub_confusion_matrix.add(batch_pare_bo_sub_prob, batch_pare_label)
             # print process
             if i % config.ckpt_freq == 0 or i >= len(val_data) - 1:
                 cm_value = pare_confusion_matrix.value()
-                msg = "[Validation]process:{}/{},scene regression distance:{}\n".format(i, len(val_data) - 1, regr_dist)
-                msg += "confusion matrix:\n{}\ncorrect labels distribution:\n{}\nerror levels distribution:\n{}\n".format(
-                    cm_value, correct_label_distrib, error_level_distrib)
+                msg = "[Validation]process:{}/{},scene confusion matrix:\n{}\n".format(i, len(val_data) - 1, cm_value)
                 vis.log_process(i, len(val_data) - 1, msg, 'val_log', append=True)
 
-                vis.bar(list(correct_label_distrib.values()), 'number of correct labels',
-                        list(correct_label_distrib.keys()))
-                vis.bar(list(error_level_distrib.values()), 'number of error levels', list(error_level_distrib.keys()))
+        sub_acc, sub_f1_score, sub_cm = evaluate(sub_confusion_matrix)
+        pare_acc, pare_f1_score, pare_cm = evaluate(pare_confusion_matrix)
+        pare_bo_sub_acc, pare_bo_sub_f1_score, pare_bo_sub_cm = evaluate(pare_bo_sub_confusion_matrix)
 
-        pare_cm = pare_confusion_matrix.value()
-        sub_cm = sub_confusion_matrix.value()
-        pare_acc = pare_cm.trace().astype(np.float) / pare_cm.sum()
-        sub_acc = sub_cm.trace().astype(np.float) / sub_cm.sum()
-
-    return pare_acc, pare_cm, sub_acc, sub_cm, correct_label_distrib, error_level_distrib
-
-
-def main(args):
-    config = Config('inference')
-    print(config)
-    val_data = get_data("val", config)
-    model = get_model(config)
-    vis = Visualizer(config)
-    print("Prepare to validate model...")
-
-    pare_acc, pare_cm, sub_acc, sub_cm, corr_label, err_level = validate(model, val_data, config, vis)
-    msg = 'parent-image validation accuracy:{}\n'.format(pare_acc)
-    msg += 'sub-image validation accuracy:{}\n'.format(sub_acc)
-    msg += 'validation scene confusion matrix:\n{}\n'.format(pare_cm)
-    msg += 'validation sub confusion matrix:\n{}\n'.format(sub_cm)
-    msg += 'number of correct labels in a scene:\n{}\n'.format(corr_label)
-    msg += 'number of error levels in a scene:\n{}\n'.format(err_level)
-    print("Validation Finish!", msg)
-    vis.log(msg, 'val_result', log_file=config.val_result)
-    print("save best validation result into " + config.val_result)
-
-
-if __name__ == '__main__':
-    import argparse
-
-    parse = argparse.ArgumentParser()
-    args = parse.parse_args()
-
-    main(args)
+    return sub_acc, sub_f1_score, sub_cm, pare_acc, pare_f1_score, pare_cm, pare_bo_sub_acc, pare_bo_sub_f1_score, pare_bo_sub_cm

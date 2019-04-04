@@ -1,56 +1,19 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2019/1/13/013 20:00 下午
-# @Author  : qixuan
-# @Email   : qixuan.lqx@qq.com
-# @File    : _base.py
-# @Software: PyCharm
-
 import os
 import time
-import torch as t
-from torch import save, load, set_grad_enabled
+from torch import save, load
 from warnings import warn
 from torch.nn import Module, DataParallel
 from torch.optim import Optimizer
 from .config import Config
 
 
-class _BaseModule(Module):
-    def __int__(self, config: Config):
-        super(_BaseModule, self).__init__()
-        self.config = config
-
-    def forward(self, input):
-        raise NotImplementedError("Should be overridden by all subclasses.")
-
-    def initialize_weights(self):
-        raise NotImplementedError("Should be overridden by all subclasses.")
-
-
-def get_model(config: Config, **kwargs) -> _BaseModule:
-    """
-    Find a Module specified by config.module from core.models, and get an instance of it
-    :param config: instance of core.Config
-    :param kwargs: arguments that will be passed into the Module, default is None
-    :return: an instance of the Module specified by config.module
-    """
-    assert isinstance(config, Config)
+def get_model(config: Config, **kwargs):
     from . import models
-    try:
-        with set_grad_enabled(config.enable_grad):
-            model = getattr(models, config.module)(config, **kwargs)
-    except AttributeError as e:
-        raise AttributeError(
-            "No module named '{}' exists in core.models, error message: {}".format(config.module, e))
-    from warnings import warn
+    model = getattr(models, 'DoubleNet')(config, **kwargs)
     # move core to GPU
     if config.use_gpu:
         model = model.cuda(0)
-    # initialize weights
-    try:
-        getattr(model, "initialize_weights")()
-    except AttributeError as e:
-        warn("initialize weights failed because:\n" + str(e))
     # parallel processing
     model = DataParallel(model, config.gpu_list)
     # load weights
@@ -60,7 +23,6 @@ def get_model(config: Config, **kwargs) -> _BaseModule:
             model.load_state_dict(state_dict)
             print('Loaded weights from ' + config.weight_load_path)
         except RuntimeError as e:
-            warn("Failed to load weights file")
             print('Failed to load weights file {} because:\n{}'.format(config.weight_load_path, e))
     return model
 

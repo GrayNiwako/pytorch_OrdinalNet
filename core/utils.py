@@ -1,13 +1,5 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2019/1/8 2:08
-# @Author  : LQX
-# @Email   : qixuan.lqx@qq.com
-# @File    : utils.py
-# @Software: PyCharm
-
-import os
 import sys
-import logging
 import json
 import numpy as np
 import torch as t
@@ -21,9 +13,6 @@ from .config import Config
 # Todo: Start server through local code
 class Visualizer(object):
     def __init__(self, config: Config):
-        # logging_level = logging._checkLevel("INFO")
-        # logging.getLogger().setLevel(logging_level)
-        # VisdomServer.start_server(port=VisdomServer.DEFAULT_PORT, env_path=config.vis_env_path)
         self.reinit(config)
 
     def reinit(self, config):
@@ -33,12 +22,6 @@ class Visualizer(object):
             self.connected = self.visdom.check_connection()
             if not self.connected:
                 print("Visdom server hasn't started, please run command 'python -m visdom.server' in terminal.")
-                # try:
-                #     print("Visdom server hasn't started, do you want to start it? ")
-                #     if 'y' in input("y/n: ").lower():
-                #         os.popen('python -m visdom.server')
-                # except Exception as e:
-                #     warn(e)
         except ConnectionError as e:
             warn("Can't open Visdom because " + e.strerror)
         with open(self.config.log_file, 'a') as f:
@@ -62,7 +45,7 @@ class Visualizer(object):
                     return env_str
         except:
             pass
-        return None
+        return ''
 
     def clear(self):
         self.visdom.close()
@@ -99,7 +82,7 @@ class Visualizer(object):
         return win == self.visdom.bar(y, win=win, env=self.config.visdom_env, opts=opts)
 
     def log(self, msg, name, append=True, log_file=None):
-        # type:(str,str,bool,bool,str)->None
+        # type:(str,str,str,bool,str)->None
         if log_file is None:
             log_file = self.config.log_file
         info = "[{time}]{msg}".format(time=timestr('%m-%d %H:%M:%S'), msg=msg)
@@ -111,7 +94,8 @@ class Visualizer(object):
         return ret == name
 
     def log_process(self, num, total, msg, name, append=True):
-        # type:(int,int,str,Visdom,str,str,dict,bool)->None
+        '''# type:(int,int,str,Visdom,str,str,dict,bool)->None'''
+        # type:(str,int,int,str,str,bool)->None
         info = "[{time}]{msg}".format(time=timestr('%m-%d %H:%M:%S'), msg=msg)
         append = append and self.visdom.win_exists(name)
         ret = self.visdom.text(info, win=(name), env=self.config.visdom_env, opts=dict(title=name), append=append)
@@ -126,11 +110,10 @@ class Visualizer(object):
         clth = int(rate * length)
         if len(msg) > 0:
             msg += ':'
-        # msg = msg.replace('\n', '').replace('\r', '')
         if rate_num == 100:
             r = '\r%s[%s%d%%]\n' % (msg, '*' * length, rate_num,)
         else:
             r = '\r%s[%s%s%d%%]' % (msg, '*' * clth, '-' * (length - clth), rate_num,)
         sys.stdout.write(r)
-        sys.stdout.flush
+        sys.stdout.flush()
         return r.replace('\r', ':')
