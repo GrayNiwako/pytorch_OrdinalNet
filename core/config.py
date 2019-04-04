@@ -21,8 +21,8 @@ class Config(object):
     batch_size = 16  # how many scene images for a batch
 
     # weight S/L config
-    weight_load_path = r'checkpoints/multinet.pth'  # where to load pre-trained weight for further training
-    weight_save_path = r'checkpoints/multinet.pth'  # where to save trained weights for further usage
+    weight_load_path = r'checkpoints/doublenet.pth'  # where to load pre-trained weight for further training
+    weight_save_path = r'checkpoints/doublenet.pth'  # where to save trained weights for further usage
     log_root = r'logs'  # where to save logs, includes temporary weights of module and optimizer, train_record json list
 
     # module config
