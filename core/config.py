@@ -5,7 +5,7 @@ from time import strftime as timestr
 
 class Config(object):
     # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    data_save_path = r'..\my_datasets'
+    data_save_path = r'../my_datasets'
     choose_data_time = 'mode_2004'
     classes_list = ['A', 'B', 'C', 'D', 'E', 'nodata']
     shuffle_train = True
@@ -18,8 +18,8 @@ class Config(object):
     num_data_workers = 1  # how many subprocesses to use for data loading
     pin_memory = True  # only set to True when your machine's memory is large enough
     time_out = 0  # max seconds for loading a batch of data, 0 means non-limit
-    max_epoch = 1  # how many epochs for training
-    batch_size = 8  # how many scene images for a batch
+    max_epoch = 100  # how many epochs for training
+    batch_size = 16  # how many scene images for a batch
 
     # weight S/L config
     weight_load_path = r'checkpoints/multinet.pth'  # where to load pre-trained weight for further training
@@ -30,7 +30,7 @@ class Config(object):
     module = 'alexnet'  # module in ['alexnet', 'resnet', 'lenet']
     image_resize = [224, 224]  # Height * Width
     loss_type = 'cross_entropy'  # loss_type in ['cross_entropy', 'mseloss', 'softmax']
-    optimizer = 'adam'  # optimizer in ['sgd', 'adam']
+    optimizer = 'sgd'  # optimizer in ['sgd', 'adam']
     lr = 0.01  # learning rate
     lr_decay = 0.95
     momentum = 0.9
