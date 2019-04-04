@@ -6,7 +6,6 @@ from time import strftime as timestr
 class Config(object):
     # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     data_save_path = r'../my_datasets'
-    choose_data_time = 'mode_2004'
     classes_list = ['A', 'B', 'C', 'D', 'E', 'nodata']
     shuffle_train = True
     shuffle_val = True
@@ -43,11 +42,6 @@ class Config(object):
     def __init__(self, mode: str, **kwargs):
         self.mode = mode
         self.init_time = timestr('%Y%m%d.%H%M%S')
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-            else:
-                warn("{} has no attribute {}:{}".format(type(self), key, value))
         # data config
         self.num_classes = len(self.classes_list)
         # efficiency config
@@ -102,9 +96,6 @@ class Config(object):
             for field in self.__record_fields__:
                 self.__record_dict__ += '"{}":"{{}}",'.format(field)
             self.__record_dict__ = self.__record_dict__[:-1] + '}}'
-        # module config
-        if isinstance(self.image_resize, int):
-            self.image_resize = [self.image_resize, self.image_resize]
 
     def __str__(self):
         """:return Configuration details."""
