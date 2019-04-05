@@ -37,7 +37,7 @@ class Config(object):
 
     # visualize config
     visdom_env = 'main'
-    ckpt_freq = 4  # save checkpoint after these iterations
+    ckpt_freq = 5  # save checkpoint after these iterations
 
     def __init__(self, mode: str, **kwargs):
         self.mode = mode
