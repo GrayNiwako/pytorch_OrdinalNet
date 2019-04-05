@@ -17,7 +17,7 @@ class Config(object):
     num_data_workers = 1  # how many subprocesses to use for data loading
     pin_memory = True  # only set to True when your machine's memory is large enough
     time_out = 0  # max seconds for loading a batch of data, 0 means non-limit
-    max_epoch = 100  # how many epochs for training
+    max_epoch = 200  # how many epochs for training
     batch_size = 16  # how many scene images for a batch
 
     # weight S/L config

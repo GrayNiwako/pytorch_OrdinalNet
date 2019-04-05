@@ -106,7 +106,6 @@ def validate(model, val_data, config, vis):
                     batch_parent_img = batch_parent_img.cuda()
                     batch_pare_label = batch_pare_label.cuda()
             batch_sub_label = batch_sub_label.view(-1)
-            batch_pare_label = batch_pare_label.view(-1)
             # forward
             batch_sub_prob, batch_pare_prob = model(batch_sub_img, batch_parent_img)
 

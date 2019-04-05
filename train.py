@@ -13,14 +13,21 @@ from datasets import CloudDataLoader
 def conv_to_label(batch_prob):
     length = batch_prob.numel()
     new_prob = t.FloatTensor(length).zero_()
+    batch_prob_np = batch_prob.cpu().detach().numpy()
+    normalization_prob = []
+    for prob in batch_prob_np:
+        if prob >= 0:
+            normalization_prob.append(1.0 / (1+np.exp(-prob)))
+        else:
+            normalization_prob.append(np.exp(prob) / (1+np.exp(prob)))
     for i in range(length):
-        if batch_prob[i] <= 0.0:
+        if normalization_prob[i] <= 0.01:
             new_prob[i] = 0.0
-        elif batch_prob[i] <= 0.1:
+        elif normalization_prob[i] <= 0.1:
             new_prob[i] = 1.0
-        elif batch_prob[i] <= 0.25:
+        elif normalization_prob[i] <= 0.25:
             new_prob[i] = 2.0
-        elif batch_prob[i] <= 0.75:
+        elif normalization_prob[i] <= 0.75:
             new_prob[i] = 3.0
         else:
             new_prob[i] = 4.0
@@ -96,7 +103,6 @@ def train(model, train_data, val_data, config, vis):
             batch_sub_label.requires_grad_(False)
             batch_pare_label.requires_grad_(False)
             batch_sub_label = batch_sub_label.view(-1)
-            batch_pare_label = batch_pare_label.view(-1)
             # forward
             batch_sub_prob, batch_pare_prob = model(batch_sub_img, batch_parent_img)
             c1 = criterion1(batch_sub_prob, batch_sub_label)
