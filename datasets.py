@@ -66,7 +66,7 @@ class CloudDataset(data.Dataset):
 
 
 def count_label(number, count_F):
-    if count_F == 8:
+    if count_F > 2:
         return 5
     elif number == 0.0:
         return 0
