@@ -4,7 +4,7 @@ from warnings import warn
 from time import strftime as timestr
 
 class Config(object):
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     data_save_path = r'../my_datasets'
     classes_list = ['A', 'B', 'C', 'D', 'E', 'nodata']
     shuffle_train = True
@@ -28,7 +28,7 @@ class Config(object):
     # module config
     module = 'alexnet'  # module in ['alexnet', 'resnet', 'lenet']
     image_resize = [224, 224]  # Height * Width
-    loss_type = 'cross_entropy'  # loss_type in ['cross_entropy', 'mseloss', 'softmax']
+    loss_type = 'cross_entropy'  # loss_type in ['cross_entropy', 'mseloss']
     optimizer = 'sgd'  # optimizer in ['sgd', 'adam']
     lr = 0.01  # learning rate
     lr_decay = 0.95
