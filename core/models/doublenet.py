@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import torchvision.models as models
-import torch as t
 import torch.nn as nn
-from torch.nn import functional as F
 from ..models import lenet
 from ..config import Config
 
@@ -15,7 +13,7 @@ class DoubleNet(nn.Module):
         if self.loss_type == 'cross_entropy':
             self.num_classes = config.num_classes
         elif self.loss_type == 'mseloss':
-            self.num_classes = 1000
+            self.num_classes = 1
 
         if config.module == 'alexnet':
             self.model1 = models.alexnet(num_classes=self.num_classes)
@@ -32,18 +30,4 @@ class DoubleNet(nn.Module):
         tensor_p = tensor_p.view(self.input_shape)
         sub_probs = self.model1(tensor_s)
         pare_probs = self.model2(tensor_p)
-        if self.loss_type == 'mseloss':
-            regression1 = nn.Linear(1000, 1)
-            regression2 = nn.Linear(1000, 1)
-            if self.use_gpu:
-                with t.cuda.device(0):
-                    sub_probs = sub_probs.cpu()
-                    pare_probs = pare_probs.cpu()
-            sub_probs_mse = regression1(F.dropout(F.relu(sub_probs)))
-            pare_probs_mse = regression2(F.dropout(F.relu(pare_probs)))
-            if self.use_gpu:
-                with t.cuda.device(0):
-                    sub_probs_mse = sub_probs_mse.cuda()
-                    pare_probs_mse = pare_probs_mse.cuda()
-            return sub_probs_mse, pare_probs_mse
         return sub_probs, pare_probs
