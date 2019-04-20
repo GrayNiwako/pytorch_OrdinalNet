@@ -5,7 +5,7 @@ from torch.nn import functional as F
 from ..config import Config
 
 class LeNet(nn.Module):
-    def __init__(self, num_classes=1):
+    def __init__(self, num_classes=1000):
         super(LeNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, (5, 5), padding=2)
         self.conv2 = nn.Conv2d(6, 16, (5, 5))
